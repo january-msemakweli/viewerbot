@@ -63,6 +63,20 @@ HEADLESS_MODE = os.getenv("HEADLESS_MODE", "true").lower() == "true"
 # Generate random user agents
 user_agent = UserAgent()
 
+# Try to import the status updater from server.py
+try:
+    from server import update_status
+except ImportError:
+    # Create a dummy update_status function if server.py is not available
+    def update_status(active=0, completed=0):
+        pass
+
+# Track active bots and completed views
+active_bots = 0
+completed_views = 0
+active_bots_lock = threading.Lock()
+completed_views_lock = threading.Lock()
+
 def get_webdriver(proxy=None):
     """Create and return a webdriver instance with optional proxy settings."""
     try:
@@ -95,6 +109,13 @@ def get_webdriver(proxy=None):
 def view_video(bot_id, proxy=None):
     """Function to view the YouTube video with a specific bot ID and optional proxy."""
     driver = None
+    global active_bots, completed_views
+    
+    # Increment active bots counter
+    with active_bots_lock:
+        active_bots += 1
+        update_status(active=active_bots)
+    
     try:
         logger.info(f"Bot #{bot_id} starting with proxy: {proxy or 'None'}")
         
@@ -138,6 +159,11 @@ def view_video(bot_id, proxy=None):
         # Wait for the determined watch time
         time.sleep(watch_time)
         
+        # Increment completed views counter
+        with completed_views_lock:
+            completed_views += 1
+            update_status(completed=1)
+            
         logger.success(f"Bot #{bot_id} successfully watched video for {watch_time} seconds")
         
     except WebDriverException as e:
@@ -152,6 +178,11 @@ def view_video(bot_id, proxy=None):
                 logger.info(f"Bot #{bot_id} browser closed")
             except Exception as e:
                 logger.error(f"Bot #{bot_id} error closing browser: {e}")
+        
+        # Decrement active bots counter
+        with active_bots_lock:
+            active_bots -= 1
+            update_status(active=active_bots)
 
 def bot_cycle(bot_id, num_views=5):
     """Run a bot through multiple view cycles."""
@@ -170,6 +201,12 @@ def bot_cycle(bot_id, num_views=5):
 
 def main(num_bots=100, views_per_bot=5):
     """Run multiple bots concurrently."""
+    global active_bots, completed_views
+    
+    # Reset counters
+    active_bots = 0
+    completed_views = 0
+    
     logger.info(f"Starting {num_bots} bots with {views_per_bot} views each")
     
     # Create and start bot threads
@@ -186,7 +223,7 @@ def main(num_bots=100, views_per_bot=5):
     for t in threads:
         t.join()
     
-    logger.success(f"All {num_bots} bots completed their cycles")
+    logger.success(f"All {num_bots} bots completed their cycles ({completed_views} total views)")
 
 if __name__ == "__main__":
     # Default configuration

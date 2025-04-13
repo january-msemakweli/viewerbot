@@ -51,6 +51,10 @@ ENV VIEWS_PER_BOT=5
 ENV USE_PROXIES=true
 ENV HEADLESS_MODE=true
 ENV PYTHONUNBUFFERED=1
+ENV PORT=10000
+
+# Expose the port the app will run on
+EXPOSE ${PORT}
 
 # Command to run when the container starts
-CMD ["python", "main.py"] 
+CMD ["python", "server.py"] 

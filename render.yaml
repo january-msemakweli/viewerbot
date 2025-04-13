@@ -4,7 +4,7 @@ services:
     env: docker
     plan: standard
     buildCommand: docker build -t youtube-viewer-bot .
-    startCommand: docker run youtube-viewer-bot
+    startCommand: docker run -p $PORT:10000 youtube-viewer-bot
     envVars:
       - key: VIDEO_URL
         value: https://www.youtube.com/watch?v=2oW9zGtnWDA
@@ -22,6 +22,8 @@ services:
         value: true
       - key: LOG_LEVEL
         value: INFO
+      - key: PORT
+        value: 10000
     autoDeploy: true
     disk:
       name: youtube-viewer-data

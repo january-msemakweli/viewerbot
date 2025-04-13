@@ -20,6 +20,15 @@ try:
     from proxy_scraper import ProxyScraper
     from proxy_tester import test_proxy, load_proxies_from_file, save_working_proxies
     from bot import main as run_bots
+    
+    # Try to import the status updater from server.py, but don't fail if it's not there
+    try:
+        from server import update_status
+    except ImportError:
+        # Create a dummy update_status function if server.py is not available
+        def update_status(active=0, completed=0):
+            pass
+            
 except ImportError as e:
     logger.error(f"Failed to import required modules: {e}")
     logger.info("Make sure you have installed all required packages from requirements.txt")
@@ -55,11 +64,21 @@ def setup_proxies():
     logger.info(f"Testing {len(proxies)} proxies...")
     working_proxies = []
     
+    # Update status to show we're testing proxies
+    update_status(active=1)
+    
     # Test each proxy and collect working ones
-    for proxy in proxies:
+    for i, proxy in enumerate(proxies):
         result_proxy, response_time = test_proxy(proxy)
         if result_proxy:
             working_proxies.append((result_proxy, response_time))
+        
+        # Update progress every 10 proxies
+        if i % 10 == 0:
+            logger.debug(f"Tested {i}/{len(proxies)} proxies, found {len(working_proxies)} working")
+    
+    # Update status to show we're done testing proxies
+    update_status(active=0)
     
     if working_proxies:
         # Sort working proxies by response time
@@ -85,10 +104,14 @@ def main():
             has_proxies = setup_proxies()
             if not has_proxies:
                 logger.warning("Running without proxies may affect view count validity and could lead to IP blocking")
-                confirmation = input("Continue without proxies? (y/n): ")
-                if confirmation.lower() != 'y':
-                    logger.info("Exiting as per user request")
-                    return
+                # When running in headless mode or on Render, we'll continue without proxies
+                if os.getenv("HEADLESS_MODE", "true").lower() == "true":
+                    logger.info("Continuing without proxies in headless mode")
+                else:
+                    confirmation = input("Continue without proxies? (y/n): ")
+                    if confirmation.lower() != 'y':
+                        logger.info("Exiting as per user request")
+                        return
         else:
             logger.info("Proxy usage disabled in configuration")
         
@@ -100,9 +123,15 @@ def main():
         logger.info(f"Configuration: {num_bots} bots, {views_per_bot} views per bot")
         logger.info(f"Total expected views: {num_bots * views_per_bot}")
         
+        # Update status to show we're starting bots
+        update_status(active=num_bots)
+        
         # Start the bots
         logger.info("Starting YouTube viewer bots...")
         run_bots(num_bots, views_per_bot)
+        
+        # Update status to show we've completed
+        update_status(active=0, completed=num_bots * views_per_bot)
         
         logger.success("YouTube viewer bot session completed successfully")
         
@@ -113,6 +142,8 @@ def main():
         import traceback
         logger.error(traceback.format_exc())
     finally:
+        # Ensure status is updated even if an error occurs
+        update_status(active=0)
         logger.info("YouTube viewer bot system shutting down")
 
 if __name__ == "__main__":
