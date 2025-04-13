@@ -1,0 +1,14 @@
+name: Keep Render App Awake
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"  # Runs every 10 minutes
+  workflow_dispatch:  # Allows manual trigger
+
+jobs:
+  keep_alive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send request to Render app
+        run: |
+          curl -s -o /dev/null -w "%{http_code}" https://navieviews.onrender.com
