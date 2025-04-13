@@ -1,8 +1,0 @@
-selenium==4.15.2
-webdriver-manager==4.0.1
-requests==2.31.0
-fake-useragent==1.4.0
-python-dotenv==1.0.0
-free-proxy==1.1.1
-loguru==0.7.2
-undetected-chromedriver==3.5.3 
