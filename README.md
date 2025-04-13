@@ -6,13 +6,14 @@ A simple YouTube viewer bot system that simulates multiple viewers watching a Yo
 
 ## Features
 
-- Simulates up to 100 concurrent viewers (configurable)
-- Automatically scrapes and tests free proxies from multiple sources
+- Simulates 28 concurrent viewers (matching our pre-tested working proxies)
+- Uses a pre-configured list of working proxies (no scanning needed)
 - Rotates IP addresses using proxies to avoid detection
 - Randomized viewing durations
 - Random user agent rotation
 - Headless browser operation (no GUI required)
 - Detailed logging system
+- Web interface for monitoring
 
 ## Requirements
 
@@ -30,29 +31,40 @@ pip install -r requirements.txt
 ```
 
 3. Ensure you have Chrome browser installed on your system
-4. Configure your settings in the `.env` file (see Configuration section)
+4. The system comes with a pre-configured list of 28 working proxies in `working_proxies.txt`
 
 ## Usage
 
-1. Run the main script:
+### Running Locally
+
+To run the system locally with the default settings:
 
 ```bash
 python main.py
 ```
 
-2. The script will:
-   - Scrape and test proxies (if needed and enabled)
-   - Start the specified number of bot instances
-   - Each bot will watch the video for a random duration
-   - Logs will be saved to various log files
+To run just the web server (recommended for better control):
 
-### Configuration
+```bash
+python server.py
+```
 
-You can configure the bot in two ways:
+Once the server is running, open your browser to:
+- `http://localhost:10000` - View bot status
+- `http://localhost:10000/proxies` - View working proxies
+- `http://localhost:10000/start` - Start the bot system
 
-#### 1. Using .env file (recommended)
+### Full Process Flow
 
-Create a `.env` file in the project root with the following parameters:
+The system will:
+1. Use the pre-configured list of 28 working proxies
+2. Start 28 bot instances (one for each proxy)
+3. Each bot will watch the video for a random duration
+4. Logs will be saved to various log files
+
+## Configuration
+
+You can configure the bot through the `.env` file in the project root with the following parameters:
 
 ```
 # YouTube Viewer Bot Configuration
@@ -60,8 +72,8 @@ Create a `.env` file in the project root with the following parameters:
 # Target YouTube video URL
 VIDEO_URL=https://www.youtube.com/watch?v=2oW9zGtnWDA
 
-# Number of bot instances to run simultaneously
-NUM_BOTS=100
+# Number of bot instances to run simultaneously (matches number of working proxies)
+NUM_BOTS=28
 
 # Number of views per bot
 VIEWS_PER_BOT=5
@@ -76,27 +88,15 @@ MAX_WATCH_TIME=180
 # Set to true to use proxies, false to disable proxy usage
 USE_PROXIES=true
 
+# Skip proxy scanning (use existing working_proxies.txt)
+SCAN_PROXIES=false
+
 # Chrome driver settings
 # Set to true for headless mode (no GUI)
 HEADLESS_MODE=true
 
 # Log configuration
 LOG_LEVEL=INFO
-```
-
-#### 2. Using environment variables
-
-You can also configure the bot using environment variables:
-
-```bash
-# To run with 50 bots, each viewing the video 10 times
-NUM_BOTS=50 VIEWS_PER_BOT=10 python main.py
-
-# To disable proxy usage
-USE_PROXIES=false python main.py
-
-# To use non-headless mode (shows browser windows)
-HEADLESS_MODE=false python main.py
 ```
 
 ## Deployment on Render
@@ -106,29 +106,36 @@ To deploy this project on Render:
 1. Create a new Web Service on Render
 2. Connect your repository
 3. Set the build command: `pip install -r requirements.txt`
-4. Set the start command: `python main.py`
-5. Add environment variables if needed (NUM_BOTS, VIEWS_PER_BOT, etc.)
-6. Set the Docker build environment for Chrome support
+4. Set the start command: `python server.py`
+5. Environment variables will be automatically configured from render.yaml
 
 Note: For Render deployment to work with Chrome/Selenium, you'll need to use their Docker environment with the proper dependencies. The included Dockerfile and render.yaml files are configured for this purpose.
+
+### Render Free Plan Limitations
+
+If using Render's free plan, be aware of these limitations:
+
+- Only 512MB RAM available (can run ~1-3 Chrome instances at a time)
+- Limited CPU resources
+- Views will still complete but will take longer as bots run in smaller batches
 
 ## Files and Structure
 
 - `main.py` - Main entry point and orchestration
 - `bot.py` - Core bot functionality for viewing videos
-- `proxy_scraper.py` - Scrapes free proxies from various sources
-- `proxy_tester.py` - Tests proxies for availability and speed
+- `server.py` - Web server for status monitoring and control
 - `requirements.txt` - Required Python packages
 - `.env` - Configuration file for bot settings
 - `Dockerfile` - Docker configuration for deployment
 - `render.yaml` - Render deployment configuration
+- `working_proxies.txt` - Pre-configured list of working proxies
 
 ## Troubleshooting
 
-- **No proxies found**: The bot will ask if you want to continue without proxies. This may affect view count validity.
 - **Chrome/Selenium issues**: Make sure Chrome is installed and updated.
 - **Dependencies**: Ensure all required packages are installed correctly.
 - **Configuration**: Check your .env file for correct settings.
+- **Resource limitations**: If experiencing memory issues, reduce views_per_bot or add delays between views.
 
 ## License
 

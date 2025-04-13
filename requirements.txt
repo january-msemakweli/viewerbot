@@ -7,4 +7,5 @@ free-proxy==1.1.1
 loguru==0.7.2
 undetected-chromedriver==3.5.3
 beautifulsoup4==4.12.2
-flask==2.3.3 
+flask==2.3.3
+setuptools>=78.1.0 

@@ -15,11 +15,35 @@ logger.add("viewer_bot.log", rotation="10 MB", level="DEBUG")
 
 logger.info("Starting YouTube Viewer Bot System")
 
+# Check if proxy scanning is enabled
+scan_proxies = os.getenv("SCAN_PROXIES", "true").lower() == "true"
+
 # Import our modules
 try:
-    from proxy_scraper import ProxyScraper
-    from proxy_tester import test_proxy, load_proxies_from_file, save_working_proxies
+    # Import bot module (always needed)
     from bot import main as run_bots
+    
+    # Only import proxy-related modules if needed
+    if scan_proxies:
+        try:
+            from proxy_scraper import ProxyScraper
+            from proxy_tester import test_proxy, load_proxies_from_file, save_working_proxies, main as test_proxies
+        except ImportError as e:
+            if scan_proxies:
+                logger.error(f"Failed to import proxy modules: {e}")
+                logger.warning("Continuing without proxy scanning capability")
+                scan_proxies = False
+    else:
+        # Define minimal functions for when scan_proxies is disabled
+        def load_proxies_from_file(filename="working_proxies.txt"):
+            try:
+                with open(filename, "r") as f:
+                    proxies = [line.strip() for line in f if line.strip()]
+                logger.info(f"Loaded {len(proxies)} proxies from {filename}")
+                return proxies
+            except Exception as e:
+                logger.error(f"Error loading proxies from file: {e}")
+                return []
     
     # Try to import the status updater from server.py, but don't fail if it's not there
     try:
@@ -34,20 +58,40 @@ except ImportError as e:
     logger.info("Make sure you have installed all required packages from requirements.txt")
     sys.exit(1)
 
-def setup_proxies():
-    """Set up and test proxies."""
+def setup_proxies(time_limit=1200):  # Default 20 minutes
+    """Set up and test proxies with a time limit."""
     # Check if proxy usage is disabled
     use_proxies = os.getenv("USE_PROXIES", "true").lower() == "true"
     if not use_proxies:
         logger.info("Proxy usage disabled in configuration")
         return False
-        
+    
+    # Check if proxy scanning should be skipped
+    scan_proxies = os.getenv("SCAN_PROXIES", "true").lower() == "true"
+    
     # Check if we already have working proxies
     if os.path.exists("working_proxies.txt"):
         proxies = load_proxies_from_file("working_proxies.txt")
-        if proxies and len(proxies) >= 20:  # Arbitrary threshold
+        if proxies:
             logger.info(f"Using {len(proxies)} existing working proxies")
-            return True
+            if not scan_proxies:
+                logger.info("Proxy scanning disabled, using existing proxy list")
+                return True
+            elif len(proxies) >= 20:  # Arbitrary threshold
+                logger.info(f"Found sufficient proxies ({len(proxies)}), skipping scanning")
+                return True
+    
+    # If proxy scanning is disabled but no working proxies exist, warn and continue
+    if not scan_proxies:
+        if not os.path.exists("working_proxies.txt") or not load_proxies_from_file("working_proxies.txt"):
+            logger.warning("Proxy scanning disabled but no working proxies found. Will try to continue without proxies.")
+            return False
+        return True
+    
+    # If we reach here, we need to scan for proxies
+    if not 'ProxyScraper' in globals():
+        logger.error("Proxy scanning required but proxy modules are not available")
+        return False
     
     # Scrape new proxies
     logger.info("Scraping proxies from various sources...")
@@ -60,35 +104,28 @@ def setup_proxies():
     
     scraper.save_to_file()
     
-    # Test proxies
-    logger.info(f"Testing {len(proxies)} proxies...")
-    working_proxies = []
+    # Test proxies with time limit
+    logger.info(f"Testing proxies with {time_limit} second time limit...")
     
     # Update status to show we're testing proxies
     update_status(active=1)
     
-    # Test each proxy and collect working ones
-    for i, proxy in enumerate(proxies):
-        result_proxy, response_time = test_proxy(proxy)
-        if result_proxy:
-            working_proxies.append((result_proxy, response_time))
-        
-        # Update progress every 10 proxies
-        if i % 10 == 0:
-            logger.debug(f"Tested {i}/{len(proxies)} proxies, found {len(working_proxies)} working")
+    # Use the time-limited testing function
+    # This will save working_proxies.txt directly
+    test_proxies(time_limit)
     
     # Update status to show we're done testing proxies
     update_status(active=0)
     
-    if working_proxies:
-        # Sort working proxies by response time
-        working_proxies.sort(key=lambda x: x[1])
-        save_working_proxies(working_proxies)
-        logger.success(f"Found {len(working_proxies)} working proxies")
-        return True
-    else:
-        logger.warning("No working proxies found. Will try to continue without proxies.")
-        return False
+    # Check if we found any working proxies
+    if os.path.exists("working_proxies.txt"):
+        working_proxies = load_proxies_from_file("working_proxies.txt")
+        if working_proxies:
+            logger.success(f"Found {len(working_proxies)} working proxies")
+            return True
+    
+    logger.warning("No working proxies found. Will try to continue without proxies.")
+    return False
 
 def main():
     """Main function to run the YouTube viewer bot system."""
@@ -96,12 +133,15 @@ def main():
         # Setup phase
         logger.info("Setting up the YouTube viewer bot system...")
         
+        # Get proxy testing time limit from environment or use default (20 minutes)
+        proxy_test_time_limit = int(os.getenv("PROXY_TEST_TIME_LIMIT", 1200))
+        
         # Set up proxies if enabled
         use_proxies = os.getenv("USE_PROXIES", "true").lower() == "true"
         has_proxies = False
         
         if use_proxies:
-            has_proxies = setup_proxies()
+            has_proxies = setup_proxies(time_limit=proxy_test_time_limit)
             if not has_proxies:
                 logger.warning("Running without proxies may affect view count validity and could lead to IP blocking")
                 # When running in headless mode or on Render, we'll continue without proxies

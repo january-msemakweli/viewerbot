@@ -8,6 +8,9 @@ logger.add("proxy_test_log.log", rotation="10 MB")
 # Maximum time (in seconds) to wait for a proxy to respond
 TIMEOUT = 10
 
+# Maximum time (in seconds) to spend testing all proxies
+MAX_TESTING_TIME = 1200  # 20 minutes
+
 # Test URL (should be accessible worldwide)
 TEST_URL = "https://www.google.com"
 
@@ -61,7 +64,13 @@ def save_working_proxies(working_proxies, filename="working_proxies.txt"):
         logger.error(f"Error saving working proxies to file: {e}")
         return False
 
-def main():
+def main(time_limit=MAX_TESTING_TIME):
+    """
+    Test proxies with a time limit.
+    
+    Args:
+        time_limit: Maximum time (in seconds) to spend testing proxies.
+    """
     # Load proxies from file
     proxies = load_proxies_from_file()
     
@@ -69,7 +78,10 @@ def main():
         logger.error("No proxies found to test.")
         return
     
-    logger.info(f"Testing {len(proxies)} proxies...")
+    logger.info(f"Testing proxies with {time_limit} second time limit...")
+    
+    # Start timing
+    start_time = time.time()
     
     # Test proxies concurrently
     working_proxies = []
@@ -83,6 +95,20 @@ def main():
                     working_proxies.append((result_proxy, response_time))
             except Exception as e:
                 logger.error(f"Error processing proxy {proxy}: {e}")
+                
+            # Check if we've reached the time limit
+            elapsed_time = time.time() - start_time
+            if elapsed_time >= time_limit:
+                logger.warning(f"Time limit of {time_limit} seconds reached. Stopping proxy testing.")
+                # Cancel remaining futures
+                for f in list(future_to_proxy.keys()):
+                    if not f.done():
+                        f.cancel()
+                break
+    
+    # Calculate how many proxies were actually tested
+    elapsed_time = time.time() - start_time
+    tested_count = sum(1 for f in future_to_proxy.keys() if f.done() and not f.cancelled())
     
     # Sort working proxies by response time
     working_proxies.sort(key=lambda x: x[1])
@@ -90,9 +116,9 @@ def main():
     # Save working proxies to file
     if working_proxies:
         save_working_proxies(working_proxies)
-        logger.success(f"Found {len(working_proxies)} working proxies out of {len(proxies)} tested.")
+        logger.success(f"Found {len(working_proxies)} working proxies out of {tested_count} tested in {elapsed_time:.2f} seconds.")
     else:
-        logger.warning("No working proxies found.")
+        logger.warning(f"No working proxies found after testing {tested_count} proxies in {elapsed_time:.2f} seconds.")
 
 if __name__ == "__main__":
     main() 

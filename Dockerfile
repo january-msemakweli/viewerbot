@@ -29,6 +29,9 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy working proxies file first (if it exists)
+COPY working_proxies.txt* ./
+
 # Copy all files to the container
 COPY . .
 
@@ -36,19 +39,21 @@ COPY . .
 RUN if [ ! -f .env ]; then \
     echo "# YouTube Viewer Bot Configuration" > .env && \
     echo "VIDEO_URL=https://www.youtube.com/watch?v=2oW9zGtnWDA" >> .env && \
-    echo "NUM_BOTS=100" >> .env && \
+    echo "NUM_BOTS=28" >> .env && \
     echo "VIEWS_PER_BOT=5" >> .env && \
     echo "MIN_WATCH_TIME=30" >> .env && \
     echo "MAX_WATCH_TIME=180" >> .env && \
     echo "USE_PROXIES=true" >> .env && \
+    echo "SCAN_PROXIES=false" >> .env && \
     echo "HEADLESS_MODE=true" >> .env && \
     echo "LOG_LEVEL=INFO" >> .env; \
     fi
 
 # Environment variables - will override .env if set
-ENV NUM_BOTS=100
+ENV NUM_BOTS=28
 ENV VIEWS_PER_BOT=5
 ENV USE_PROXIES=true
+ENV SCAN_PROXIES=false
 ENV HEADLESS_MODE=true
 ENV PYTHONUNBUFFERED=1
 ENV PORT=10000

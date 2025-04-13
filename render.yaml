@@ -9,7 +9,7 @@ services:
       - key: VIDEO_URL
         value: https://www.youtube.com/watch?v=2oW9zGtnWDA
       - key: NUM_BOTS
-        value: 100
+        value: 28
       - key: VIEWS_PER_BOT
         value: 5
       - key: MIN_WATCH_TIME
@@ -18,6 +18,8 @@ services:
         value: 180
       - key: USE_PROXIES
         value: true
+      - key: SCAN_PROXIES
+        value: false
       - key: HEADLESS_MODE
         value: true
       - key: LOG_LEVEL

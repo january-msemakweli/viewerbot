@@ -1,7 +1,7 @@
 import os
 import threading
 import time
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from loguru import logger
 import sys
 from dotenv import load_dotenv
@@ -14,6 +14,9 @@ log_level = os.getenv("LOG_LEVEL", "INFO")
 logger.remove()
 logger.add(sys.stderr, level=log_level)
 logger.add("viewer_bot.log", rotation="10 MB", level="DEBUG")
+
+# Check if proxy scanning is enabled
+scan_proxies = os.getenv("SCAN_PROXIES", "true").lower() == "true"
 
 # Create Flask app
 app = Flask(__name__)
@@ -49,6 +52,123 @@ def home():
         "uptime": uptime,
         "last_update": bot_status["last_update"]
     })
+
+@app.route('/proxies')
+def get_proxies():
+    """Display the list of working proxies."""
+    try:
+        if os.path.exists("working_proxies.txt"):
+            with open("working_proxies.txt", "r") as f:
+                proxies = [line.strip() for line in f if line.strip()]
+            return jsonify({
+                "count": len(proxies),
+                "proxies": proxies
+            })
+        else:
+            return jsonify({
+                "error": "No working proxies file found",
+                "count": 0,
+                "proxies": []
+            })
+    except Exception as e:
+        return jsonify({
+            "error": str(e),
+            "count": 0,
+            "proxies": []
+        })
+
+@app.route('/test-proxies')
+def test_proxies_endpoint():
+    """Test proxies with time limit."""
+    # Check if proxy scanning is disabled
+    scan_proxies = os.getenv("SCAN_PROXIES", "true").lower() == "true"
+    if not scan_proxies:
+        if os.path.exists("working_proxies.txt"):
+            with open("working_proxies.txt", "r") as f:
+                proxies = [line.strip() for line in f if line.strip()]
+            return jsonify({
+                "status": "skipped", 
+                "message": f"Proxy scanning disabled, using {len(proxies)} existing proxies",
+                "count": len(proxies)
+            })
+        else:
+            return jsonify({
+                "status": "error", 
+                "message": "Proxy scanning disabled but no existing proxies found",
+                "count": 0
+            })
+    
+    # Get time limit from query parameter or use default (20 minutes)
+    time_limit = request.args.get('time_limit', default=1200, type=int)
+    
+    if bot_status["is_running"]:
+        return jsonify({"status": "error", "message": "Bot system is already running"})
+    
+    # Start proxy testing in a background thread
+    thread = threading.Thread(target=run_proxy_testing, args=(time_limit,))
+    thread.daemon = True
+    thread.start()
+    
+    return jsonify({
+        "status": "started", 
+        "message": f"Proxy testing started with {time_limit} second time limit",
+        "time_limit": time_limit
+    })
+
+def run_proxy_testing(time_limit=1200):
+    """Run proxy testing in the background."""
+    global bot_status
+    
+    try:
+        # Update status
+        bot_status["is_running"] = True
+        bot_status["start_time"] = time.time()
+        bot_status["last_update"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Import the proxy testing modules
+        try:
+            from proxy_scraper import ProxyScraper
+            from proxy_tester import main as test_proxies
+        except ImportError:
+            logger.error("Failed to import proxy modules")
+            bot_status["is_running"] = False
+            return
+        
+        # Scrape proxies
+        logger.info("Scraping proxies from various sources...")
+        scraper = ProxyScraper()
+        proxies = scraper.scrape_all_sources()
+        
+        if proxies:
+            scraper.save_to_file()
+            
+            # Test proxies with time limit
+            logger.info(f"Testing proxies with {time_limit} second time limit...")
+            bot_status["active_bots"] = 1  # Show as active
+            test_proxies(time_limit)
+            
+            # Check results
+            if os.path.exists("working_proxies.txt"):
+                with open("working_proxies.txt", "r") as f:
+                    working_proxies = [line.strip() for line in f if line.strip()]
+                logger.success(f"Found {len(working_proxies)} working proxies")
+                bot_status["completed_views"] = len(working_proxies)
+            else:
+                logger.warning("No working proxies found")
+        else:
+            logger.error("Failed to scrape any proxies")
+        
+    except Exception as e:
+        logger.error(f"Error testing proxies: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+    
+    finally:
+        # Update status
+        bot_status["is_running"] = False
+        bot_status["active_bots"] = 0
+        bot_status["last_update"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        logger.info("Proxy testing finished")
 
 @app.route('/start')
 def start_bots():
