@@ -6,10 +6,22 @@ services:
     buildCommand: docker build -t youtube-viewer-bot .
     startCommand: docker run youtube-viewer-bot
     envVars:
+      - key: VIDEO_URL
+        value: https://www.youtube.com/watch?v=2oW9zGtnWDA
       - key: NUM_BOTS
         value: 100
       - key: VIEWS_PER_BOT
         value: 5
+      - key: MIN_WATCH_TIME
+        value: 30
+      - key: MAX_WATCH_TIME
+        value: 180
+      - key: USE_PROXIES
+        value: true
+      - key: HEADLESS_MODE
+        value: true
+      - key: LOG_LEVEL
+        value: INFO
     autoDeploy: true
     disk:
       name: youtube-viewer-data

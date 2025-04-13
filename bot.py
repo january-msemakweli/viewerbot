@@ -13,18 +13,24 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, WebDriverException
 import undetected_chromedriver as uc
 from loguru import logger
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Configure logger
 logger.add("bot_log.log", rotation="10 MB")
 
-# YouTube video URL
-VIDEO_URL = "https://www.youtube.com/watch?v=2oW9zGtnWDA"
+# YouTube video URL from environment or default
+VIDEO_URL = os.getenv("VIDEO_URL", "https://www.youtube.com/watch?v=2oW9zGtnWDA")
 
 # List of free proxies (you can update this list or use a proxy service API)
 PROXIES = []
 
-# Load proxies from working_proxies.txt if it exists
-if os.path.exists("working_proxies.txt"):
+# Load proxies from working_proxies.txt if it exists and proxy usage is enabled
+USE_PROXIES = os.getenv("USE_PROXIES", "true").lower() == "true"
+
+if USE_PROXIES and os.path.exists("working_proxies.txt"):
     try:
         with open("working_proxies.txt", "r") as f:
             PROXIES = [line.strip() for line in f if line.strip()]
@@ -32,8 +38,8 @@ if os.path.exists("working_proxies.txt"):
     except Exception as e:
         logger.error(f"Error loading proxies from file: {e}")
 
-# Use free-proxy package to get proxies if the list is empty
-if not PROXIES:
+# Use free-proxy package to get proxies if the list is empty and proxy usage is enabled
+if USE_PROXIES and not PROXIES:
     try:
         from fp.fp import FreeProxy
         for _ in range(150):  # Try to get more proxies than needed in case some fail
@@ -47,9 +53,12 @@ if not PROXIES:
     except ImportError:
         logger.warning("free-proxy package not installed, using direct connections")
 
-# Randomized watch times (between 30 seconds and full video length)
-MIN_WATCH_TIME = 30  # seconds
-MAX_WATCH_TIME = 180  # seconds (adjust based on video length)
+# Randomized watch times from environment or defaults
+MIN_WATCH_TIME = int(os.getenv("MIN_WATCH_TIME", 30))  # seconds
+MAX_WATCH_TIME = int(os.getenv("MAX_WATCH_TIME", 180))  # seconds
+
+# Headless mode configuration
+HEADLESS_MODE = os.getenv("HEADLESS_MODE", "true").lower() == "true"
 
 # Generate random user agents
 user_agent = UserAgent()
@@ -64,14 +73,15 @@ def get_webdriver(proxy=None):
         options.add_argument("--disable-gpu")
         options.add_argument("--disable-dev-shm-usage")
         
-        # Run in headless mode (no GUI)
-        options.add_argument("--headless")
+        # Run in headless mode if configured
+        if HEADLESS_MODE:
+            options.add_argument("--headless")
         
         # Set random user agent
         options.add_argument(f"--user-agent={user_agent.random}")
         
-        # Add proxy if provided
-        if proxy:
+        # Add proxy if provided and enabled
+        if USE_PROXIES and proxy:
             options.add_argument(f"--proxy-server={proxy}")
         
         # Initialize Chrome driver
@@ -146,13 +156,13 @@ def view_video(bot_id, proxy=None):
 def bot_cycle(bot_id, num_views=5):
     """Run a bot through multiple view cycles."""
     for view_count in range(1, num_views + 1):
-        # Choose a random proxy or None
-        proxy = random.choice(PROXIES) if PROXIES else None
+        # Choose a random proxy or None based on configuration
+        proxy = random.choice(PROXIES) if USE_PROXIES and PROXIES else None
         
         logger.info(f"Bot #{bot_id} starting view #{view_count}/{num_views}")
         view_video(bot_id, proxy)
         
-        # Random delay between views (1-5 minutes)
+        # Random delay between views (10-30 seconds)
         if view_count < num_views:
             delay = random.randint(10, 30)
             logger.info(f"Bot #{bot_id} waiting {delay} seconds before next view")
@@ -180,13 +190,7 @@ def main(num_bots=100, views_per_bot=5):
 
 if __name__ == "__main__":
     # Default configuration
-    num_bots = 100
-    views_per_bot = 5
-    
-    # You can override defaults with environment variables
-    if os.environ.get("NUM_BOTS"):
-        num_bots = int(os.environ.get("NUM_BOTS"))
-    if os.environ.get("VIEWS_PER_BOT"):
-        views_per_bot = int(os.environ.get("VIEWS_PER_BOT"))
+    num_bots = int(os.getenv("NUM_BOTS", 100))
+    views_per_bot = int(os.getenv("VIEWS_PER_BOT", 5))
     
     main(num_bots, views_per_bot) 

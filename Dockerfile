@@ -32,9 +32,24 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy all files to the container
 COPY . .
 
-# Environment variables
+# Create .env file if not exists with default values
+RUN if [ ! -f .env ]; then \
+    echo "# YouTube Viewer Bot Configuration" > .env && \
+    echo "VIDEO_URL=https://www.youtube.com/watch?v=2oW9zGtnWDA" >> .env && \
+    echo "NUM_BOTS=100" >> .env && \
+    echo "VIEWS_PER_BOT=5" >> .env && \
+    echo "MIN_WATCH_TIME=30" >> .env && \
+    echo "MAX_WATCH_TIME=180" >> .env && \
+    echo "USE_PROXIES=true" >> .env && \
+    echo "HEADLESS_MODE=true" >> .env && \
+    echo "LOG_LEVEL=INFO" >> .env; \
+    fi
+
+# Environment variables - will override .env if set
 ENV NUM_BOTS=100
 ENV VIEWS_PER_BOT=5
+ENV USE_PROXIES=true
+ENV HEADLESS_MODE=true
 ENV PYTHONUNBUFFERED=1
 
 # Command to run when the container starts

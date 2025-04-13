@@ -2,10 +2,15 @@ import os
 import sys
 import time
 from loguru import logger
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Set up logging
+log_level = os.getenv("LOG_LEVEL", "INFO")
 logger.remove()
-logger.add(sys.stderr, level="INFO")
+logger.add(sys.stderr, level=log_level)
 logger.add("viewer_bot.log", rotation="10 MB", level="DEBUG")
 
 logger.info("Starting YouTube Viewer Bot System")
@@ -22,6 +27,12 @@ except ImportError as e:
 
 def setup_proxies():
     """Set up and test proxies."""
+    # Check if proxy usage is disabled
+    use_proxies = os.getenv("USE_PROXIES", "true").lower() == "true"
+    if not use_proxies:
+        logger.info("Proxy usage disabled in configuration")
+        return False
+        
     # Check if we already have working proxies
     if os.path.exists("working_proxies.txt"):
         proxies = load_proxies_from_file("working_proxies.txt")
@@ -66,18 +77,24 @@ def main():
         # Setup phase
         logger.info("Setting up the YouTube viewer bot system...")
         
-        # Set up proxies
-        has_proxies = setup_proxies()
-        if not has_proxies:
-            logger.warning("Running without proxies may affect view count validity and could lead to IP blocking")
-            confirmation = input("Continue without proxies? (y/n): ")
-            if confirmation.lower() != 'y':
-                logger.info("Exiting as per user request")
-                return
+        # Set up proxies if enabled
+        use_proxies = os.getenv("USE_PROXIES", "true").lower() == "true"
+        has_proxies = False
         
-        # Get configuration from environment or use defaults
-        num_bots = int(os.environ.get("NUM_BOTS", 100))
-        views_per_bot = int(os.environ.get("VIEWS_PER_BOT", 5))
+        if use_proxies:
+            has_proxies = setup_proxies()
+            if not has_proxies:
+                logger.warning("Running without proxies may affect view count validity and could lead to IP blocking")
+                confirmation = input("Continue without proxies? (y/n): ")
+                if confirmation.lower() != 'y':
+                    logger.info("Exiting as per user request")
+                    return
+        else:
+            logger.info("Proxy usage disabled in configuration")
+        
+        # Get configuration from environment variables
+        num_bots = int(os.getenv("NUM_BOTS", 100))
+        views_per_bot = int(os.getenv("VIEWS_PER_BOT", 5))
         
         # Display configuration
         logger.info(f"Configuration: {num_bots} bots, {views_per_bot} views per bot")
